@@ -1,0 +1,8 @@
+Yichong Guan 	, Yanzhi Zhang
+guanyich			, zhab1767
+12
+Discussion: Starvation is possible to happen during execution. Despite our locking scheme for quadrants should follow the rule that threads lock in order one to four, phtread_mutex_lock does not 
+				have any specific order(e.g FIFO) about which thread should get the lock if multiple thread calling for the same lock. For example ,If there is a thread(T1) waiting for the lock,
+				and another thread(T2) calls phtread_mutex_lock after T1, it is possible that T2 will acquire the lock instead of T1. If such case happens multiple time, that is, T1 keeps waiting while
+				multiple other threads arrive, keep trying to acquire the lock and keep getting the lock, then T1 starves. Therefore, starvation is possible. 
+				One possible solution to prevent this case is to build a queue for the thread, so the first one who arrive should always get the lock.

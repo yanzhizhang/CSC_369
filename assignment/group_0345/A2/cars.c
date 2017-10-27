@@ -1,0 +1,363 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "traffic.h"
+
+extern struct intersection isection;
+
+/**
+ * Populate the car lists by parsing a file where each line has
+ * the following structure:
+ *
+ * <id> <in_direction> <out_direction>
+ *
+ * Each car is added to the list that corresponds with
+ * its in_direction
+ *
+ * Note: this also updates 'inc' on each of the lanes
+ */
+void parse_schedule(char *file_name) {
+    int id;
+    struct car *cur_car;
+    struct lane *cur_lane;
+    enum direction in_dir, out_dir;
+    FILE *f = fopen(file_name, "r");
+
+    /* parse file */
+    while (fscanf(f, "%d %d %d", &id, (int*)&in_dir, (int*)&out_dir) == 3) {
+
+        /* construct car */
+        cur_car = malloc(sizeof(struct car));
+        cur_car->id = id;
+        cur_car->in_dir = in_dir;
+        cur_car->out_dir = out_dir;
+
+        /* append new car to head of corresponding list */
+        cur_lane = &isection.lanes[in_dir];
+        cur_car->next = cur_lane->in_cars;
+        cur_lane->in_cars = cur_car;
+        cur_lane->inc++;
+    }
+
+    fclose(f);
+}
+
+/**
+ * TODO: Fill in this function
+ *
+ * Do all of the work required to prepare the intersection
+ * before any cars start coming
+ *
+ */
+void init_intersection() {
+	
+	int i;
+	while(i < 4){
+		
+		//initialize in and out
+		isection.lanes[i].in_cars = NULL;
+		isection.lanes[i].out_cars = NULL;
+		
+		//initialize in_car number and passed number
+		isection.lanes[i].inc = 0;
+		isection.lanes[i].passed = 0;
+		
+		//malloc the buffer and initialize the circular buffer
+		isection.lanes[i].buffer = (struct car**)malloc(LANE_LENGTH*(sizeof(struct car*)));
+		isection.lanes[i].head = 0;
+		isection.lanes[i].tail = 0;
+		isection.lanes[i].in_buf = 0;
+
+		isection.lanes[i].capacity = LANE_LENGTH;
+		
+		//initialize locks
+		pthread_mutex_init(&(isection.lanes[i].lock), NULL);
+		pthread_cond_init(&(isection.lanes[i].consumer_cv), NULL);
+		pthread_cond_init(&(isection.lanes[i].producer_cv), NULL);
+		pthread_mutex_init(&(isection.quad[i]), NULL);
+		
+		i++;
+
+	}
+}
+/**
+ * TODO: Fill in this function
+ *
+ * Populates the corresponding lane with cars as room becomes
+ * available. Ensure to notify the cross thread as new cars are
+ * added to the lane.
+ *
+ */
+void *car_arrive(void *arg) {
+	struct lane *l = arg;
+
+	while(1){
+
+		pthread_mutex_lock(&(l->lock));
+		
+		//if a lane is finished, return
+		if (l->in_cars == NULL){
+			pthread_mutex_unlock(&(l->lock));
+			return NULL;
+	 	}
+		
+		// if buffer is full, wait for the cross thread to send cars
+		while(l->in_buf == l->capacity){
+			pthread_cond_wait(&(l->producer_cv), &(l->lock));
+		}
+		
+		//update tail before adding the tail
+		//if nothing in buffer, no need to add tail, the first element is the tail
+		if (l->in_buf != 0){
+			if(l->tail + 1 == l->capacity){
+				l->tail = 0;
+			}else{
+				l->tail++;
+			}
+		}
+		
+		//update necessary informations.
+		l->buffer[l->tail] = l->in_cars;
+		l->in_buf ++;
+		l->inc -- ;
+		l->in_cars = (l->in_cars)->next;
+		
+		// signal the cross thread that there is now some car in the buffer
+		pthread_cond_signal(&(l->consumer_cv));
+	 	pthread_mutex_unlock(&(l->lock));
+
+	 }
+    return NULL;
+
+}
+
+/**
+ * TODO: Fill in this function
+ *
+ * Moves cars from a single lane across the intersection. Cars
+ * crossing the intersection must abide the rules of the road
+ * and cross along the correct path. Ensure to notify the
+ * arrival thread as room becomes available in the lane.
+ *
+ * Note: After crossing the intersection the car should be added
+ * to the out_cars list of the lane that corresponds to the car's
+ * out_dir. Do not free the cars!
+ *
+ *
+ * Note: For testing purposes, each car which gets to cross the
+ * intersection should print the following three numbers on a
+ * new line, separated by spaces:
+ *  - the car's 'in' direction, 'out' direction, and id.
+ *
+ * You may add other print statements, but in the end, please
+ * make sure to clear any prints other than the one specified above,
+ * before submitting your final code.
+ */
+void *car_cross(void *arg) {
+	//use compute path to find the needed quadrant
+	//unlock every when you need them
+	//if there is no car in buffer, signal arrive to let them have car to come
+	
+	struct lane *l = arg;
+  	while(1){
+    	
+    	pthread_mutex_lock(&(l->lock));
+    	
+    	// if such lane is finished, return
+    	if((l->in_cars == NULL)&&(l->in_buf == 0)){
+    		free(l->buffer);
+    		pthread_mutex_unlock(&(l->lock));
+    		return NULL;		   
+    	}
+		
+		// if no car in buffer, wait for arrive thread to get car into the buffer
+ 		while(l->in_buf == 0){
+ 			pthread_cond_wait(&(l->consumer_cv), &(l->lock));
+ 		}
+	
+		struct car *temp_car = (l->buffer)[l->head];
+		
+		//get a car from the buffer, update in_buf
+		l->in_buf --;
+		
+	   int *temp_path = compute_path(temp_car->in_dir ,temp_car->out_dir);
+	   
+	   int i;
+	   int sec_num;
+	   
+	   // critical section, start locking quadrants and sending cars
+	   for(i=0;i<=3;i++){
+	   	if(temp_path[i] != -1){
+	   		sec_num = temp_path[i] - 1;
+	   		pthread_mutex_lock(&(isection.quad[sec_num]));
+	   	}
+	   }
+			
+		//update the out_cars for the car's out_dir lane
+		temp_car->next = (isection.lanes[temp_car->out_dir]).out_cars;
+		(isection.lanes[temp_car->out_dir]).out_cars = temp_car;
+		isection.lanes[temp_car->out_dir].passed ++ ;
+		
+		printf("%d %d %d \n", temp_car->in_dir, temp_car->out_dir, temp_car->id);
+		
+		//update head after send a car out
+		//if no car in buffer after sending the car, no need to update head		
+		if (l->in_buf != 0){
+			if(l->head + 1 == l->capacity){
+				l->head = 0;
+			}else{
+				l->head++;
+			}
+		}
+		
+		//finished, unlock quadrants
+	   for(i=0;i<=3;i++){
+	   	if(temp_path[i] != -1){
+	   		sec_num = temp_path[i] - 1;
+	   		pthread_mutex_unlock(&(isection.quad[sec_num]));
+	   	}
+	   }
+	   
+	   free(temp_path);
+	   
+	   // signal the arrive, tell the other thread that some cars have been sent
+	   pthread_cond_signal(&(l->producer_cv));
+	   pthread_mutex_unlock(&(l->lock));
+	   
+ 	}
+
+ 	return NULL;
+}
+
+/**
+ * TODO: Fill in this function
+ *
+ * Given a car's in_dir and out_dir return a sorted
+ * list of the quadrants the car will pass through.
+ *
+ */
+int *compute_path(enum direction in_dir, enum direction out_dir) {
+
+  	int* path = malloc(sizeof(int)*4);
+  	path[0] = -1;
+  	path[1] = -1;
+  	path[2] = -1;
+  	path[3] = -1;
+  	// direction NORTH
+	if (in_dir == NORTH){
+		
+		if (out_dir == SOUTH){
+			path[0] = 2;
+			path[1] = 3;
+		}
+
+		else if (out_dir == EAST){
+			path[0] = 2;
+			path[1] = 3;
+			path[2] = 4;
+		}
+
+		else if (out_dir ==  WEST){
+			path[0] = 2;
+		}
+
+		else if (out_dir == NORTH){
+			path[0] = 1;
+			path[1] = 2;
+			path[2] = 3;
+			path[3] = 4;
+		}
+		else{
+			return NULL;
+		}
+  	}
+  	
+  	// direction WEST
+  	else if (in_dir == WEST){
+  		
+		if (out_dir == EAST){
+			path[0] = 3;
+			path[1] = 4;
+		}
+		else if (out_dir == SOUTH){
+			path[0] = 3;
+		}
+		else if (out_dir ==  NORTH){
+			path[0] = 1;
+			path[1] = 3;
+			path[2] = 4;
+		}
+		else if (out_dir == WEST){
+			path[0] = 1;
+			path[1] = 2;
+			path[2] = 3;
+			path[3] = 4;
+		}
+		else{
+			return NULL;
+		}
+  	}
+  	
+  	// direction SOUTH
+  	else if (in_dir == SOUTH){
+  		
+		if (out_dir == EAST){
+			path[0] = 4;
+		}
+		else if (out_dir == WEST){
+			path[0] = 1;
+			path[1] = 2;
+			path[2] = 4;
+		}
+		else if (out_dir ==  NORTH){
+			path[0] = 1;
+			path[1] = 4;
+		}
+		else if (out_dir == SOUTH){
+			path[0] = 1;
+			path[1] = 2;
+			path[2] = 3;
+			path[3] = 4;
+		}
+		else{
+			return NULL;
+		}
+  	}
+  	
+  	// direction EAST
+  	else if (in_dir == EAST){
+  		
+		if (out_dir == SOUTH){
+			 path[0] = 1;
+			 path[1] = 2;
+			 path[2] = 3;
+		}
+
+		else if (out_dir == WEST){
+			path[0] = 1;
+			path[1] = 2;
+		}
+
+		else if (out_dir ==  NORTH){
+			path[0] = 1;
+		}
+
+		else if (out_dir == EAST){
+			path[0] = 1;
+			path[1] = 2;
+			path[2] = 3;
+			path[3] = 4;
+		}
+		else{
+			return NULL;
+		}
+  	}
+  	
+  	// if not any direction
+  	else if (in_dir > MAX_DIRECTION){
+  		return NULL;
+  	}
+  return path;
+  
+}
