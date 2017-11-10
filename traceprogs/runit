@@ -1,0 +1,3 @@
+#!/bin/bash
+
+valgrind --tool=lackey --trace-mem=yes ./$1 ${@:2} |& ./fastslim.py  --keepcode --buffersize 8 > tr-$1.ref
