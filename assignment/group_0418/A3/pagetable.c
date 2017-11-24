@@ -39,29 +39,31 @@ int allocate_frame(pgtbl_entry_t *p) {
 		// All frames were in use, so victim frame must hold some page
 		// Write victim page to swap, if needed, and update page table
 		// IMPLEMENTATION NEEDED
+		struct frame chosen_frame = coremap[frame];
 		
-		if (!(coremap[frame].pte->frame & PG_DIRTY)){
-			coremap[frame].pte->frame = coremap[frame].pte->frame | PG_ONSWAP;
+		// if the page is not dirty, clean eviction count, no need to swap.
+		if (!(chosen_frame.pte->frame & PG_DIRTY)){
+			chosen_frame.pte->frame = chosen_frame.pte->frame | PG_ONSWAP;
 			evict_clean_count++;
 		}
 		
-		else if (coremap[frame].pte->frame & PG_DIRTY){
-			int offset_in_swap = swap_pageout(frame, coremap[frame].pte->swap_off);
+		// if the page is dirty, swap the page out and increment dirty count.
+		else if (chosen_frame.pte->frame & PG_DIRTY){
+			int offset_in_swap = swap_pageout(frame, chosen_frame.pte->swap_off);
 			if (offset_in_swap != INVALID_SWAP){
-				coremap[frame].pte->swap_off = offset_in_swap;
+				chosen_frame.pte->swap_off = offset_in_swap;
 			}
-			coremap[frame].pte->frame = coremap[frame].pte->frame & ~PG_DIRTY;
-			coremap[frame].pte->frame = coremap[frame].pte->frame | PG_ONSWAP;
+			chosen_frame.pte->frame = chosen_frame.pte->frame & ~PG_DIRTY;
+			chosen_frame.pte->frame = chosen_frame.pte->frame | PG_ONSWAP;
 			evict_dirty_count++;
 		}
-
-		coremap[frame].pte->frame = coremap[frame].pte->frame & ~PG_VALID;
+		// indicate that this page table entry is no more dirty.
+		chosen_frame.pte->frame = chosen_frame.pte->frame & ~PG_VALID;
 	}
 
-	
+	// allocate the frame for page table entry p	
 	coremap[frame].pte = p;
 	coremap[frame].in_use = 1;
-	printf("frame %d\n", frame);
 	return frame;
 }
 
@@ -155,20 +157,15 @@ char *find_physpage(addr_t vaddr, char type) {
 
 	// Use vaddr to get index into 2nd-level page table and initialize 'p'
 	// get the address of the entry
-	
 	pgtbl_entry_t *entry = (pgtbl_entry_t*)(pgdir[idx].pde & PAGE_MASK);
 	unsigned page_index = PGTBL_INDEX(vaddr);
 	p = &entry[page_index];
-	
-	printf("directory index : %u, page_index : %u \n", idx, page_index);
 
 	// Check if p is valid or not, on swap or not, and handle appropriately
 	int frame_index;
 
 	if (p->frame & PG_VALID){
-		printf("hit : %lu\n", vaddr);
 		hit_count ++;
-		printf("hit count : %d\n", hit_count);
 	}
 	
 	else if (!(p->frame & PG_VALID)){
@@ -177,10 +174,12 @@ char *find_physpage(addr_t vaddr, char type) {
 		if (!(p->frame & PG_ONSWAP)){
 			frame_index = allocate_frame(p);
 			p->frame = frame_index << PAGE_SHIFT;
+			//first time, then mark the page as dirty
 			p->frame = p->frame | PG_DIRTY;	
 			init_frame(frame_index, vaddr);
 		}
 		
+		// if it is swapped, swap in the page from swapfile
 		else if (p->frame & PG_ONSWAP){
 			frame_index = allocate_frame(p);
 			int check = swap_pagein(frame_index, p->swap_off);
@@ -190,26 +189,28 @@ char *find_physpage(addr_t vaddr, char type) {
 				p->frame = p->frame | PG_ONSWAP;	
 			}
 		}
-		printf("miss : %lu\n", vaddr);
 		miss_count ++;
-		printf("miss count : %d\n", miss_count);
 	}
 
 	// Make sure that p is marked valid and referenced. Also mark it
 	// dirty if the access type indicates that the page will be written to.
-	p->frame = p->frame | PG_VALID;
-	p->frame = p->frame | PG_REF;
+	
+	// if type is M or S, mark the page table entry as DIRTY
 	if (type == 'M'){
 		p->frame = p->frame | PG_DIRTY;
 	}
+	
 	if (type == 'S'){
 		p->frame = p->frame | PG_DIRTY;
 	}
+	
+	p->frame = p->frame | PG_VALID;
+	p->frame = p->frame | PG_REF;
+	
 	ref_count ++;
 
 	// Call replacement algorithm's ref_fcn for this page
 	ref_fcn(p);
-	printf("-------------------------\n");
 
 	// Return pointer into (simulated) physical memory at start of frame
 	return  &physmem[(p->frame >> PAGE_SHIFT)*SIMPAGESIZE];

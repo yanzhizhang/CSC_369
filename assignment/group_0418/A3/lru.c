@@ -25,17 +25,19 @@ int *frame_time_record;
 int lru_evict() {
 
 	int chosen_one = 0;
-	int count;
-	for (count = 0; count < memsize; count++){
-
-        if (frame_time_record[count] < frame_time_record[chosen_one]){
+	
+	//find the one that is referenced longest time ago
+	int count = 0;
+	while (count < memsize){
+		if (frame_time_record[count] < frame_time_record[chosen_one]){
             chosen_one = count;
-        }
-    }
-
-    // this index of frame is going to be evicted
-    // make number to 0 to make the next one start again.
-    frame_time_record[chosen_one] = 0;
+      }
+      count ++;
+	}
+   
+   // this index of frame is going to be evicted
+   // make number to 0 to make the next one start again.
+   frame_time_record[chosen_one] = 0;
 	return chosen_one;
 	
 }
@@ -60,18 +62,17 @@ void lru_ref(pgtbl_entry_t *p) {
  */
 void lru_init() {
 
-	int count;
 	time = 0;
 	//malloc the array to store information
-	frame_time_record = malloc(memsize * sizeof(int));
-
-	if (!frame_time_record){
-        perror("malloc");
-        exit(1);
-    }
-
-    for (count = 0; count < memsize; count++){
-        frame_time_record[count] = 0;
-    }
+	if ((frame_time_record = malloc(memsize * sizeof(int))) == NULL){
+		perror("malloc");
+      exit(1);
+	}
+   //initialize the time record array
+   int count = 0;
+   while (count < memsize){
+   	frame_time_record[count] = 0;
+   	count ++;
+   }
 
 }

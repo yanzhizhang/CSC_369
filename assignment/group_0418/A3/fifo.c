@@ -12,6 +12,7 @@ extern int debug;
 
 extern struct frame *coremap;
 
+//used to record the index of the current oldest frame
 int oldest;
 
 /* Page to evict is chosen using the fifo algorithm.
