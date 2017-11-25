@@ -144,7 +144,7 @@ struct ext2_inode {
 	unsigned int   i_flags;       /* File flags */
 	/* You should set it to 0. */
 	unsigned int   osd1;          /* OS dependent 1 */
-	unsigned int   +   /* Pointers to blocks */
+	unsigned int   i_block[15];   /* Pointers to blocks */
 	/* You should use generation number 0 for the assignment. */
 	unsigned int   i_generation;  /* File version (for NFS) */
 	/* The following fields should be 0 for the assignment.  */
