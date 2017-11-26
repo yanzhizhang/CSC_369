@@ -53,6 +53,17 @@ struct ext2_inode* inode_given_path(char *input){
 	return parent_inode;
 }
 
+int get_entry_size(char* name){
+	int result = 8;
+	if((strlen(name)%4) != 0){
+		result += (strlen(name)/4)*4 + 4;	
+	}else{
+		result += strlen(name);
+	}
+	
+	return result;
+}
+
 unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char* name, unsigned char type){
 	
 	struct ext2_dir_entry *entry;
@@ -68,9 +79,6 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
    		memory_count = 0;
    		entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count]);
    		while(memory_count < EXT2_BLOCK_SIZE){
-   			
-   			printf("lolol : %s\n", entry->name);
-   			printf("rec  : %d\n", entry->rec_len);
    			if (strlen(name) == entry->name_len){
    				flag1 = 1;
    			}
@@ -94,11 +102,13 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
    return 0;
 }
 
-int delete_dir_entry(struct ext2_inode *parent_inode, char* self_name){
+int restore_dir_entry(struct ext2_inode *parent_inode, char* self_name){
 	int memory_record;
-	struct ext2_dir_entry *entry, *prev_entry;
-	int removed_inode;
+	struct ext2_dir_entry *entry, *possible_entry;
+	int restored_inode;
+	int actual_size;
 	int flag1 = 0, flag2 = 0, flag3 = 0;
+
 	int block_count = (parent_inode->i_blocks)/2;
 	
 	printf("check parent : %d \n", parent_inode->i_links_count);
@@ -109,69 +119,44 @@ int delete_dir_entry(struct ext2_inode *parent_inode, char* self_name){
 		memory_record = 0;
 		while (memory_record < EXT2_BLOCK_SIZE){
 			entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[i] + memory_record);
-			printf("check entry name : %s \n", entry->name);
-			if (entry->file_type != (unsigned char)EXT2_FT_DIR) {
-				flag1 = 1;
+			actual_size = get_entry_size(entry->name);
+			
+			if(actual_size != entry->rec_len){
+				
+				 int start = memory_record + actual_size;
+			    int end = memory_record + entry->rec_len;
+			    while(start <= end){
+			    		possible_entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[i] + start);
+			    		if (possible_entry->inode != 0){
+			    			printf("possible name: %s \n", possible_entry -> name);
+			    			printf("now position : %d \n", start);
+			    			if (possible_entry->file_type == (unsigned char)EXT2_FT_REG_FILE) {
+								flag1 = 1;
+				 			}
+				 			
+				 			if(strncmp(self_name, possible_entry -> name, possible_entry->name_len) == 0){
+				 				
+				 				flag2 = 1;
+				 			}
+				 			
+				 			if (possible_entry->inode != 0){
+								flag3 = 1;
+				 			}
+				 			if (flag1 & flag2 & flag3){
+				 				printf("this: %s \n", possible_entry -> name);
+								entry -> rec_len = start - memory_record;
+								restored_inode = possible_entry->inode;
+								return restored_inode;
+							}
+			    		}
+			    		flag1 = 0; flag2 = 0; flag3 = 0;
+			    		start += 4;
+			    }
+				
 			}
-			printf("check name len : %d \n", entry->name_len);
-			if (strncmp(self_name,entry->name,entry->name_len)==0){
-				flag2 = 1;
-			}
-			if (entry->inode != 0){
-				flag3 = 1;
-			}
-			if (flag1 & flag2 & flag3){
-				prev_entry -> rec_len += entry -> rec_len;
-				removed_inode = entry->inode;
-				//entry->inode = 0;
-				//TODO update rec_len
-				return removed_inode;
-			}
-			prev_entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[i] + memory_record);
 			memory_record += entry->rec_len;
 		}
 	}	
-	return 0;
-}
-
-int complete_remove(struct ext2_inode * removed_inode){
-	int i;
-	int block_num = removed_inode -> i_blocks/2 ;
-	// remove all the direct link
-	if (block_num < 12){
-		printf("I am here woahahah\n");
-		for(i = 0; i < block_num; i++){ 
-				printf("this is the block : %d \n", removed_inode->i_block[i]); 
-            super_block->s_free_blocks_count ++;
-            group_desc->bg_free_blocks_count ++;
-            block_bitmap_alter(removed_inode->i_block[i]-1,0);   
-    	}
-   }
-   
-    // remove indirect link
-	if (!(block_num < 12)){
-		printf("wow ! indirect\n");
-		//remove all the direct ones first.
-		for(i = 0; i < 12; i++){  
-            super_block->s_free_blocks_count ++;
-            group_desc->bg_free_blocks_count ++;
-            block_bitmap_alter(removed_inode->i_block[i]-1,0);  
-      }
-      
-      //remove indirect ones.
-      unsigned int *block_index = (void*)(disk + removed_inode->i_block[12]*EXT2_BLOCK_SIZE);
-      block_bitmap_alter(removed_inode->i_block[12] - 1,0);
-		i = 0;
-      while(i < (removed_inode->i_blocks)/2 - 13){
-      	super_block->s_free_blocks_count ++;
-         group_desc->bg_free_blocks_count ++;
-      	block_bitmap_alter(*block_index-1,0);
-      	block_index ++;  
-      	i ++;
-      }
-
-	}
-
 	return 0;
 }
 
@@ -193,14 +178,14 @@ void inode_bitmap_alter(unsigned int ind, int result){
 
 int main(int argc, char **argv) {
 
-	if (argc != 3){  
-        fprintf(stderr, "Usage: <image file> <absolute file path>\n");  
-        return 1;  
-    }  
+    if(argc != 3) {
+        fprintf(stderr, "Usage: <disk name> <absolute_path>\n");
+        exit(1);
+    }
 
     char* chosen_disk = argv[1];
     char* chosen_path = argv[2];
-
+    
     int fd = open(chosen_disk, O_RDWR);
     disk = mmap(NULL, 128 * 1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if(disk == MAP_FAILED) {
@@ -259,35 +244,17 @@ int main(int argc, char **argv) {
 	 self_name[strlen(cp)] = '\0';
 	 
 	 printf("self_name : %s \n", self_name);
-
-	 struct ext2_inode *parent_inode = inode_given_path(parent_path);
-	 if (inode_index_given_name_parent(parent_inode, self_name, EXT2_FT_DIR)!=0){
-        fprintf(stderr, "link refers to a DIR\n");
-        return EISDIR;
-    } 
-
-	 int removed_inode_index = delete_dir_entry(parent_inode, self_name);
-	 if (removed_inode_index == 0){
-	 	 printf("opps\n");
-    	 return ENOENT; 
-	 }
 	 
-	 printf("check removed inode index : %d\n", removed_inode_index);
-
-	 // set removed inode
-	 struct ext2_inode * removed_inode = &inodes[removed_inode_index - 1];
-	 // to check if it is only one file
-    removed_inode->i_links_count--;
-
-    super_block->s_free_inodes_count ++;  
-    group_desc->bg_free_inodes_count ++;  
-    removed_inode->i_dtime = (unsigned)time(NULL);
-    inode_bitmap_alter(removed_inode_index-1, 0); 
-
-    complete_remove(removed_inode); 
+	 struct ext2_inode *parent_inode = inode_given_path(parent_path);
+	 int restored_inode_index = restore_dir_entry(parent_inode, self_name);
+	 
+	 /*
+	 struct ext2_dir_entry *entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[0] + 24);
+	 entry->rec_len = 40;*/
+	 inode_bitmap_alter(restored_inode_index - 1, 1); 
+	 
 
 
 	 return 0;
+
 }
-
-

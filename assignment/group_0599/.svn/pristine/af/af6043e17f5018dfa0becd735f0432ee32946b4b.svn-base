@@ -68,9 +68,6 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
    		memory_count = 0;
    		entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count]);
    		while(memory_count < EXT2_BLOCK_SIZE){
-   			
-   			printf("lolol : %s\n", entry->name);
-   			printf("rec  : %d\n", entry->rec_len);
    			if (strlen(name) == entry->name_len){
    				flag1 = 1;
    			}
@@ -96,7 +93,7 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
 
 int delete_dir_entry(struct ext2_inode *parent_inode, char* self_name){
 	int memory_record;
-	struct ext2_dir_entry *entry, *prev_entry;
+	struct ext2_dir_entry *entry;
 	int removed_inode;
 	int flag1 = 0, flag2 = 0, flag3 = 0;
 	int block_count = (parent_inode->i_blocks)/2;
@@ -121,13 +118,10 @@ int delete_dir_entry(struct ext2_inode *parent_inode, char* self_name){
 				flag3 = 1;
 			}
 			if (flag1 & flag2 & flag3){
-				prev_entry -> rec_len += entry -> rec_len;
 				removed_inode = entry->inode;
-				//entry->inode = 0;
-				//TODO update rec_len
+				entry->inode = 0;
 				return removed_inode;
 			}
-			prev_entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[i] + memory_record);
 			memory_record += entry->rec_len;
 		}
 	}	
