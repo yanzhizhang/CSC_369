@@ -31,11 +31,6 @@ int open_image(char **argv){
   check_bitmap(disk);
   //2345
   check_inode(disk);
-  //3
-
-  //4
-
-  //5
 }
 
 //1check super_block and group_desc block_bitmap
@@ -131,7 +126,7 @@ int recursive_check(struct ext2_inode *current_inode){
               memory_count = 0;
               entry = (struct ext2_dir_entry*)(disk + 1024*inodes[count2].i_block[p]);
               while(memory_count < 1024){
-                
+
               }
             }
             p++;
