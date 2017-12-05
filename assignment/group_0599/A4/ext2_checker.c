@@ -77,38 +77,45 @@ int free_bit_count(unsigned char *disk, int block_num){
 	}
 	return bit_count;
 }
-//
-// int check_bitmap(unsigned char *disk){
-//   int total_fixes = 0;
-// 	unsigned char *block_bitmap = (unsigned char *)(disk + EXT2_BLOCK_SIZE * (group_des -> bg_block_bitmap));
-// 	unsigned char *inode_bitmap = (unsigned char *)(disk + EXT2_BLOCK_SIZE * (group_des -> bg_inode_bitmap));
-//
-//     printf("Fixed: block group's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
-//   }
-//
-//
-//     printf("Fixed: block group's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
-//   }
-//
-//
-//   // NOTE :super_block count
-//   used_block_count = 0;
-//
-//   if (used_block_count != (128 - super_block->s_free_blocks_count)){
-//
-//     printf("Fixed: superblock's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
-//   }
-//
-//
-//   used_inode_count = 0;
-//
-//   if (used_inode_count != (32 - super_block->s_free_inodes_count)){
-//
-//     printf("Fixed: superblock's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
-//   }
-//
-//   return total_fixes;
-// }
+
+
+int check_bitmap(unsigned char *disk){
+  int total_fixes = 0;
+	int free_inode_count = free_bit_count(disk, 32);
+	int free_block_count = free_bit_count(disk, 128);
+	struct ext2_super_block *super_block = (struct ext2_super_block *)(disk + 1024);
+	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
+	printf("free_inode_count is %d\n", free_inode_count);
+	printf("free_block_count is %d\n", free_block_count);
+
+	// if (/* condition */) {
+  //
+  //   printf("Fixed: block group's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
+  // }
+  //
+  //
+  //   printf("Fixed: block group's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
+  // }
+  //
+  //
+  // // NOTE :super_block count
+  // used_block_count = 0;
+  //
+  // if (used_block_count != (128 - super_block->s_free_blocks_count)){
+  //
+  //   printf("Fixed: superblock's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
+  // }
+  //
+  //
+  // used_inode_count = 0;
+  //
+  // if (used_inode_count != (32 - super_block->s_free_inodes_count)){
+  //
+  //   printf("Fixed: superblock's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
+  // }
+  //
+  // return total_fixes;
+}
 
 
 int check_inode(unsigned char *disk){
@@ -236,9 +243,11 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
+	check_bitmap(disk);
+
 	int total_fixes = 0;
 	total_fixes += check_inode(disk);
-	if (total_fixes == 0) {
+	if (total_fixes != 0) {
 		printf("%d file system inconsistencies repaired!\n",total_fixes);
 	} else {
 		printf("No file system inconsistencies detected!");
