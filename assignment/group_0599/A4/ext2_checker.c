@@ -9,216 +9,241 @@
 #include "ext2.h"
 
 unsigned char *disk;
-struct ext2_super_block *super_block;
-struct ext2_group_desc *group_desc;
-unsigned char *block_bitmap;
-unsigned char *inode_bitmap;
-struct ext2_inode *inodes;
+// struct ext2_super_block *super_block;
+// struct ext2_group_desc *group_desc;
+// unsigned char *block_bitmap;
+// unsigned char *inode_bitmap;
+// struct ext2_inode *inodes;
 
-void block_bitmap_alter(unsigned int ind, int result){
-	int off = ind / (sizeof(char*));
-	int rem = ind % (sizeof(char*));
+int block_bitmap_alter(unsigned char *disk, int block_num){
+	struct ext2_super_block *super_block = (struct ext2_super_block *)(disk + 1024);
+	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
+	unsigned char *block_bitmap = (unsigned char *)(disk + 1024*(gd->bg_block_bitmap));
 
-	unsigned char* position = block_bitmap + off;
-	*position = ((*position & ~(1 << rem)) | (result << rem));
+	unsigned int byte_offset = (block_num-1) / 8;
+	unsigned int bit_offset = (block_num-1) % 8;
+
+	int cur_bit = (block_bitmap[byte_offset]&(1<<bit_offset))>>bit_offset;
+	if (!cur_bit){
+		block_bitmap[byte_offset]|=(1<<bit_offset);
+		gd->bg_free_blocks_count --;
+		super_block->s_free_blocks_count --;
+		printf("FIXXXING MOTHER FUCKER BLOCK");
+		return 1;
+	}
+	return 0;
 }
 
-void inode_bitmap_alter(unsigned int ind, int result){
-	int off = ind / (sizeof(char*));
-	int rem = ind % (sizeof(char*));
+int inode_bitmap_alter(unsigned char *disk, int block_num){
+	struct ext2_super_block *super_block = (struct ext2_super_block *)(disk + 1024);
+	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
+	unsigned char *inode_bitmap = (unsigned char *)(disk + 1024*(gd->bg_inode_bitmap));
 
-	unsigned char* position = inode_bitmap + off;
-	*position = ((*position & ~(1 << rem)) | (result << rem));
+	unsigned int byte_offset = (block_num) / 8;
+	unsigned int bit_offset = (block_num) % 8;
+
+	int cur_bit = (inode_bitmap[byte_offset]&(1<<bit_offset))>>bit_offset;
+
+	if (!cur_bit){
+		inode_bitmap[byte_offset]|=(1<<bit_offset);
+		gd->bg_free_inodes_count --;
+		super_block->s_free_inodes_count --;
+		printf("FIXXXING MOTHER FUCKER INODE");
+		return 1;
+	}
+	return 0;
 }
 
-unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char* name, unsigned char type){
+// int free_bit_count(unsigned char *disk, int block_num){
+// 	struct ext2_super_block *super_block = (struct ext2_super_block *)(disk + 1024);
+// 	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
+// 	inode_bitmap = (unsigned char *)(disk + 1024*(gd->bg_inode_bitmap));
+//
+// 	if (bits == 32) {
+// 		unsigned int byte_offset = (block_num) / 8;
+// 		unsigned int bit_offset = (block_num) % 8;
+// 		int cur_bit = (inode_bitmap[byte_offset]&(1<<bit_offset))>>bit_offset;
+// 		if (!cur_bit){
+// 			return 1;
+// 		} else {
+// 			return 0;
+// 		}
+//
+// 	} else if (bits == 128) {
+// 		unsigned int byte_offset = (block_num-1) / 8;
+// 		unsigned int bit_offset = (block_num-1) % 8;
+// 		int cur_bit = (block_bitmap[byte_offset]&(1<<bit_offset))>>bit_offset;
+// 		if (!cur_bit){
+// 			return 1;
+// 		} else {
+// 			return 0;
+// 		}
+// }
 
-	struct ext2_dir_entry *entry;
-	int count = 0;
-   int memory_count;
-   int flag1 = 0;
-   int flag2 = 0;
-   int flag3 = 0;
-
-   // loop through the inode's i_block
-   while (count < 15){
-   	if (parent_inode->i_block[count]!=0){
-   		memory_count = 0;
-   		entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count]);
-   		while(memory_count < EXT2_BLOCK_SIZE){
-   			if (strlen(name) == entry->name_len){
-   				flag1 = 1;
-   			}
-   			if (strncmp(name, entry->name, entry->name_len) == 0){
-   				flag2 = 1;
-   			}
-   			if (type & entry->file_type){
-   				flag3 = 1;
-   			}
-   			if (flag1 == 1 & flag2 == 1 & flag3 == 1){
-   				printf("entry->inode %d \n", entry->inode);
-   				return entry->inode;
-   			}
-				flag1 = 0;flag2 = 0;flag3 = 0;
-				memory_count += entry->rec_len;
-				entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count] + memory_count);
-  		 	}
-   	}
-   	count ++;
-   }
-   return 0;
-}
-
-//1check super_block and group_desc block_bitmap
-int check_bitmap(unsigned char *disk){
-  int total_fixes = 0;
-  struct ext2_group_desc *address = (struct ext2_group_desc *)(disk + 1024*2);
-  struct ext2_super_block *sb = (struct ext2_super_block *)(disk + 1024);
-
-  printf("count gd block bitmap: \n");
-  unsigned char *block_bitmap = (unsigned char*)(disk + 1024*3);
-  int used_block_count = 0;
-  for (int i=0 ; i<=15 ; i++){
-     for (int j=0 ; j<8 ; j++){
-         if((block_bitmap[i] >> j) & 1) used_block_count++;
-     }
-  }
-  printf("used_block_count is %d\n", used_block_count);
-  if (used_block_count != (128 - address->bg_free_blocks_count)){
-    address->bg_free_blocks_count = 128 - used_block_count;
-    total_fixes += 128 - used_block_count;
-    printf("Fixed: block group's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
-  }
-
-  printf("count gd inode bitmap: \n");
-  unsigned char *inode_bitmap = (unsigned char*)(disk + 1024*4);
-  int used_inode_count = 0;
-  for (int i=0 ; i<=3 ; i++){
-     for (int j=0 ; j<8 ; j++){
-         if ((inode_bitmap[i] >> j) & 1) used_inode_count++;
-     }
-  }
-  printf("used_inode_count is %d\n", used_inode_count);
-  if (used_inode_count != (32 - address->bg_free_inodes_count)){
-    address->bg_free_inodes_count = 32 - used_inode_count;
-    total_fixes += 32 - used_inode_count;
-    printf("Fixed: block group's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
-  }
-
-
-  // NOTE :sb count
-  printf("count sb block bitmap: \n");
-  used_block_count = 0;
-  for (int i=0 ; i<=15 ; i++){
-     for (int j=0 ; j<8 ; j++){
-         if((block_bitmap[i] >> j) & 1) used_block_count++;
-     }
-  }
-  printf("used_block_count is %d\n", used_block_count);
-  if (used_block_count != (128 - sb->s_free_blocks_count)){
-    sb->s_free_blocks_count = 128 - used_block_count;
-    total_fixes += 128 - used_block_count;
-    printf("Fixed: superblock's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
-  }
-
-  printf("count sb inode bitmap: \n");
-  used_inode_count = 0;
-  for (int i=0 ; i<=3 ; i++){
-     for (int j=0 ; j<8 ; j++){
-         if ((inode_bitmap[i] >> j) & 1) used_inode_count++;
-     }
-  }
-  printf("used_inode_count is %d\n", used_inode_count);
-  if (used_inode_count != (32 - sb->s_free_inodes_count)){
-    sb->s_free_inodes_count = 32 - used_inode_count;
-    total_fixes += 32 - used_inode_count;
-    printf("Fixed: superblock's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
-  }
-
-  return total_fixes;
-}
-
-int loop_check(struct ext2_inode *current_inode){
-  int total_fixes = 0;
-
-  struct ext2_dir_entry *entry;
-  int count2 = 0;
-  struct ext2_group_desc *address = (struct ext2_group_desc *)(disk + 1024*2);
-  struct ext2_super_block *sb = (struct ext2_super_block *)(disk + 1024);
-
-  group_desc = (struct ext2_group_desc*)(disk + EXT2_BLOCK_SIZE*2);
-
-  while(count2 < 32){
-    if (count2 == 1 || count2 > 10){
-      if(inodes[count2].i_size != 0){
-        if((inodes[count2].i_mode & EXT2_S_IFDIR) || (inodes[count2].i_mode & EXT2_S_IFREG) || (inodes[count2].i_mode & EXT2_S_IFLNK)){
-
-          //c
-          unsigned char *inode_bitmap = (unsigned char*)(disk + 1024*4);
-          block_bitmap = (unsigned char*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_block_bitmap);
-          if(current_inode->i_mode == EXT2_S_IFLNK || current_inode->i_mode == EXT2_S_IFREG || current_inode->i_mode == EXT2_S_IFDIR){
-            if ((inode_bitmap[count2/8] >> count2%8) & 0){
-              // (inode_bitmap[count2/8] >> count2%8) = 1;
-              inode_bitmap_alter(count2, 1);
-              printf("Fixed: Entry type vs inode mismatch: inode [%d]\n", count2);
-              total_fixes += 1;
-            }
-
-          }
-
-          int p = 0;
-          int data_block_unmarked = 0;
-          while(p<15){
-            if (inodes[count2].i_block[p] != 0){
-              unsigned char *block_bitmap = (unsigned char*)(disk + 1024*3);
-              if ((block_bitmap[inodes[count2].i_block[p]/8] >> inodes[count2].i_block[p]%8) & 0){
-                data_block_unmarked++;
-                // (block_bitmap[inodes[count2].i_block[p]/8] >> inodes[count2].i_block[p]%8) = 1;
-                block_bitmap_alter(inodes[count2].i_block[p], 1);
-              }
-            }
-            //b d
-            entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * inodes[count2].i_block[p]);
-            if(inodes[count2].i_mode != entry->file_type){
-              entry->file_type = inodes[count2].i_mode;
-              printf("Fixed: Entry type vs inode mismatch: inode [%d]\n",count2);
-              total_fixes += 1;
-            }
-            if(inodes[count2].i_dtime != 0){
-              inodes[count2].i_dtime = 0;
-              printf("Fixed: valid inode marked for deletion: [%d]\n", count2);
-              total_fixes += 1;
-            }
-
-            p++;
-          }
-          if (data_block_unmarked > 0){
-            address->bg_free_blocks_count -= data_block_unmarked;
-            sb->s_free_blocks_count -= data_block_unmarked;
-            printf("Fixed: %d in-use data blocks not marked in data bitmap for inode: [%d]\n",data_block_unmarked,count2 );
-            total_fixes += data_block_unmarked;
-          }
-
-        }
-      }
-    }
-    count2++;
-  }
-  return total_fixes;
-}
+// int check_bitmap(unsigned char *disk){
+//   int total_fixes = 0;
+// 	unsigned char *block_bitmap = (unsigned char *)(disk + EXT2_BLOCK_SIZE * (group_des -> bg_block_bitmap));
+// 	unsigned char *inode_bitmap = (unsigned char *)(disk + EXT2_BLOCK_SIZE * (group_des -> bg_inode_bitmap));
+//
+//     printf("Fixed: block group's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
+//   }
+//
+//
+//     printf("Fixed: block group's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
+//   }
+//
+//
+//   // NOTE :super_block count
+//   used_block_count = 0;
+//
+//   if (used_block_count != (128 - super_block->s_free_blocks_count)){
+//
+//     printf("Fixed: superblock's free blocks counter was off by %d compared to the bitmap\n",(128 - used_block_count));
+//   }
+//
+//
+//   used_inode_count = 0;
+//
+//   if (used_inode_count != (32 - super_block->s_free_inodes_count)){
+//
+//     printf("Fixed: superblock's free inodes counter was off by %d compared to the bitmap\n", (32 - used_inode_count));
+//   }
+//
+//   return total_fixes;
+// }
 
 
 int check_inode(unsigned char *disk){
-  super_block = (struct ext2_super_block*)(disk + EXT2_BLOCK_SIZE);
-  group_desc = (struct ext2_group_desc*)(disk + EXT2_BLOCK_SIZE*2);
-  block_bitmap = (unsigned char*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_block_bitmap);
-  inode_bitmap = (unsigned char*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_inode_bitmap);
+  struct ext2_super_block *super_block = (struct ext2_super_block*)(disk + EXT2_BLOCK_SIZE);
+  struct ext2_group_desc *group_desc = (struct ext2_group_desc*)(disk + EXT2_BLOCK_SIZE*2);
 
-  // give a ~ name and check files recursively
-  struct ext2_inode *root_inode = &inodes[EXT2_ROOT_INO - 1];
-  return loop_check(root_inode);
+	struct ext2_inode *inodes = (struct ext2_inode*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_inode_table);;
+	int total_fixes = 0;
+
+	struct ext2_dir_entry *entry;
+	int inode_index = 0;
+
+
+
+	//NOTE inode bitmap
+	while(inode_index < super_block->s_inodes_count){
+		if (inode_index == 1 || inode_index > super_block->s_first_ino - 2){
+			if(inodes[inode_index].i_blocks != 0){
+				if((inodes[inode_index].i_mode & EXT2_S_IFDIR) || (inodes[inode_index].i_mode & EXT2_S_IFREG) || (inodes[inode_index].i_mode & EXT2_S_IFLNK)){
+					if (inode_bitmap_alter(disk, inode_index) == 1){
+						printf("Fixed: inode [%d] not marked as in-use\n", inode_index);
+						total_fixes += 1;
+						printf("total_fixes is %d\n", total_fixes);
+					}
+
+					//NOTE fix i_dtime
+					if(inodes[inode_index].i_dtime != 0){
+						inodes[inode_index].i_dtime = 0;
+						printf("Fixed: valid inode marked for deletion: [%d]\n", inode_index);
+						total_fixes += 1;
+						printf("total_fixes is %d\n", total_fixes);
+					}
+
+					// int data_block_unmarked = 0;
+					if(inodes[inode_index].i_mode & EXT2_S_IFDIR){
+						int p = 0 ;
+							while( p < (inodes[inode_index].i_blocks/2) ){
+								if (inodes[inode_index].i_block[p] != 0){
+								int cur_block_num;
+								if (p < 12){
+									cur_block_num = inodes[inode_index].i_block[p];
+								} else if (p == 12){
+									continue;
+								} else {
+									cur_block_num = (int)(disk + inodes[inode_index].i_block[12] + (p-13));
+								}
+								entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * cur_block_num);
+								int read = 0;
+								while((read < 1024) && (entry->rec_len != 0)){
+									read += entry->rec_len;
+									int cur_inode_num = entry->inode;
+									if (cur_inode_num == 0){
+										continue;
+									}
+									// create cur inode using cur inode number
+
+									struct ext2_inode *cur_inode = (struct ext2_inode *)(disk + EXT2_BLOCK_SIZE * (group_desc->bg_inode_table) + sizeof(struct ext2_inode) * (cur_inode_num-1));
+									//NOTE i_mode
+									if(cur_inode->i_mode >= EXT2_S_IFLNK){
+										if((cur_inode->i_mode & EXT2_FT_SYMLINK) == EXT2_FT_SYMLINK){
+											total_fixes += 1;
+											entry->file_type = EXT2_FT_SYMLINK;
+											printf("Fixed: Entry type vs inode mismatch: inode [%d]\n", inode_index);
+											printf("total_fixes is %d\n", total_fixes);
+										}
+									} else if((cur_inode->i_mode & EXT2_S_IFREG) == EXT2_S_IFREG){
+										if(entry->file_type != EXT2_FT_REG_FILE){
+											entry->file_type = EXT2_FT_REG_FILE;
+											printf("Fixed: Entry type vs inode mismatch: inode [%d]\n", inode_index);
+											total_fixes += 1;
+											printf("total_fixes is %d\n", total_fixes);
+										}
+									} else if((cur_inode->i_mode & EXT2_S_IFDIR) == EXT2_S_IFDIR){
+										if(entry->file_type != EXT2_FT_DIR){
+											entry->file_type = EXT2_FT_DIR;
+											printf("Fixed: Entry type vs inode mismatch: inode [%d]\n", inode_index);
+											total_fixes += 1;
+											printf("total_fixes is %d\n", total_fixes);
+										}
+									}
+
+									//NOTE i_block
+									if(cur_inode->i_blocks != 0){
+										int sub_i;
+										int fix_block = 0;
+										for ( sub_i = 0 ; sub_i < cur_inode->i_blocks/2; sub_i++){
+											int sub_cur_num;
+											if(sub_i < 12){
+													sub_cur_num = cur_inode->i_block[sub_i];
+											}else if (sub_i == 12){
+													continue;
+											}else{
+												sub_cur_num = (int)( disk + cur_inode -> i_block[12] + ( sub_i - 13 ));
+											}
+
+											// int off = sub_cur_num / (sizeof(char*));
+											// int rem = sub_cur_num % (sizeof(char*));
+											// unsigned char* position = block_bitmap + off;
+											if(block_bitmap_alter(disk, sub_cur_num) == 1){
+												fix_block += 1;
+												total_fixes++;
+
+												printf("sub_i is %d\n",sub_i );
+												printf("block_bitmap_alter total_fixes is %d\n", total_fixes);
+											}
+										}
+										if (fix_block > 0){
+											printf("Fixed: %d in-use data blocks not marked in data bitmap for inode:[%d]\n", fix_block, cur_inode_num);
+											printf("total_fixes is %d\n", total_fixes);
+										}
+									}
+									// Move to next directory Entry
+									entry = (struct ext2_dir_entry *)((char *)entry + entry->rec_len);
+								}
+							}
+							p++;
+						}
+					}
+					// if (data_block_unmarked > 0){
+					// 	printf("group_desc->bg_free_blocks_count is %d\n", data_block_unmarked);
+					// 	group_desc->bg_free_blocks_count -= data_block_unmarked;
+					// 	super_block->s_free_blocks_count -= data_block_unmarked;
+					// 	printf("Fixed: %d in-use data blocks not marked in data bitmap for inode: [%d]\n",data_block_unmarked,inode_index );
+					// 	total_fixes += data_block_unmarked;
+					// 	printf("total_fixes is %d\n", total_fixes);
+					// }
+				}
+			}
+		}
+		inode_index++;
+	}
+	return total_fixes;
 }
-
 
 int open_image(char **argv){
   int fd = open(argv[1], O_RDWR);
@@ -228,56 +253,24 @@ int open_image(char **argv){
     exit(1);
   }
 
-
-  super_block = (struct ext2_super_block*)(disk + EXT2_BLOCK_SIZE);
-  group_desc = (struct ext2_group_desc*)(disk + EXT2_BLOCK_SIZE*2);
-  inodes = (struct ext2_inode*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_inode_table);
+  // struct ext2_super_block *super_block = (struct ext2_super_block*)(disk + EXT2_BLOCK_SIZE);
+  // struct ext2_group_desc *group_desc = (struct ext2_group_desc*)(disk + EXT2_BLOCK_SIZE*2);
+  // struct ext2_inode *inodes = (struct ext2_inode*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_inode_table);
 
   int total_fixes = 0;
-  //1
-  total_fixes = check_bitmap(disk);
-  //2345
+  //a
+  // total_fixes = check_bitmap(disk);
+  //bcde
   total_fixes += check_inode(disk);
   return total_fixes;
 }
 
-struct ext2_inode* inode_given_path(char *input){
-	char real_path[1024];
-	int path_len = (int)strlen(input);
-	strcpy(real_path, input);
-	real_path[path_len + 1] = '\0';
-
-	unsigned int num;
-
-	// make the parent inode point to the root
-	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
-	if (path_len != 1){
-		char* temp = strtok(real_path, "/");
-		while (temp != NULL){
-			printf("the temp : %s \n", temp);
-			num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
-			printf("inode num : %d\n", num);
-			if (num == 0){
-				return NULL;
-			}
-			parent_inode = &inodes[num-1];
-			temp = strtok(NULL, "/");
-		}
-	}
-	else if (path_len == 1){
-		if (real_path[0] == '/'){
-			return parent_inode;
-		}
-	}
-	return parent_inode;
-}
-
 int main(int argc, char **argv) {
-
   if(argc != 2) {
     fprintf(stderr, "Usage: <disk name> <absolute_path>\n");
     exit(1);
   }
-  int temp = open_image(argv);
-  printf("%d\n", temp);
+	int total_fixes = open_image(argv);
+	printf("total_fixes is %d\n", total_fixes);
+  return 0;
 }

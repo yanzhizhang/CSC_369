@@ -25,9 +25,9 @@ struct ext2_inode* inode_given_path(char *input){
 	int path_len = strlen(input);
 	strcpy(real_path, input);
 	real_path[path_len + 1] = '\0';
-	
+
 	unsigned int num;
-	
+
 	// make the parent inode point to the root
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	if (path_len != 1){
@@ -45,20 +45,20 @@ struct ext2_inode* inode_given_path(char *input){
 	}
 	else if (path_len == 1){
 		if (real_path[0] == '/'){
-			return parent_inode;		
-		}	
+			return parent_inode;
+		}
 	}
 	return parent_inode;
 }
 
 unsigned int inode_index_given_path(char* input){
-	
+
 	if (strlen(input) == 1){
 		if(input[0] == '/'){
-			return EXT2_ROOT_INO ;		
-		}	
+			return EXT2_ROOT_INO ;
+		}
 	}
-	
+
 	char real_path[1024];
 	int path_len = strlen(input);
 	strcpy(real_path, input);
@@ -79,21 +79,21 @@ unsigned int inode_index_given_path(char* input){
 	}
 	else if (path_len == 1){
 		if (real_path[0] == '/'){
-			return num;		
-		}	
+			return num;
+		}
 	}
 	return num;
 }
 
 unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char* name, unsigned char type){
-	
+
 	struct ext2_dir_entry *entry;
 	int count = 0;
    int memory_count;
    int flag1 = 0;
-   int flag2 = 0; 
+   int flag2 = 0;
    int flag3 = 0;
-   
+
    // loop through the inode's i_block
    while (count < 15){
    	if (parent_inode->i_block[count]!=0){
@@ -132,24 +132,24 @@ unsigned int init_inode(){
 	int count = 0;
 	int count2 = 0;
 	int ind = 1;
-	
+
 	while (count < (super_block->s_inodes_count)/sizeof(char*)){
 			temp = *pointer;
 			while (count2 < 8) {
-				
+
 				if(ind >= 11){
-					flag1 = 1;				
+					flag1 = 1;
 				}
-				
+
 				if(!((temp>>count2) & 1)){
 					flag2 = 1;
 				}
-				
+
 				if (flag1 & flag2){
 					printf("New Inode Index: %d\n", ind);
-					return ind;	
+					return ind;
 				}
-				
+
 				flag1 = 0;flag2 = 0;
 				count2 ++;
 				ind++;
@@ -189,7 +189,7 @@ unsigned int init_block(){
 void block_bitmap_alter(unsigned int ind, int result){
 	int off = ind / (sizeof(char*));
 	int rem = ind % (sizeof(char*));
-	
+
 	unsigned char* position = block_bitmap + off;
 	*position = ((*position & ~(1 << rem)) | (result << rem));
 }
@@ -197,13 +197,12 @@ void block_bitmap_alter(unsigned int ind, int result){
 void inode_bitmap_alter(unsigned int ind, int result){
 	int off = ind / (sizeof(char*));
 	int rem = ind % (sizeof(char*));
-	
+
 	unsigned char* position = inode_bitmap + off;
 	*position = ((*position & ~(1 << rem)) | (result << rem));
 }
 
 int alter_inode(unsigned int ind, unsigned short mode, unsigned int size, unsigned int new_block){
-	
 	//subject to change
 	inodes[ind].i_mode = mode;
 	inodes[ind].i_uid = 0;
@@ -227,11 +226,11 @@ int alter_inode(unsigned int ind, unsigned short mode, unsigned int size, unsign
 int get_entry_size(char* name){
 	int result = 8;
 	if((strlen(name)%4) != 0){
-		result += (strlen(name)/4)*4 + 4;	
+		result += (strlen(name)/4)*4 + 4;
 	}else{
 		result += strlen(name);
 	}
-	
+
 	return result;
 }
 
@@ -257,24 +256,24 @@ struct ext2_dir_entry * add_dir_entry(unsigned char file_type, struct ext2_inode
 					strcpy(entry->name, new_name);
 					entry->name_len = strlen(new_name);
 					entry->name[strlen(entry->name)] = '\0';
-					entry->file_type = file_type;	
-					parent_inode->i_links_count++;		
+					entry->file_type = file_type;
+					parent_inode->i_links_count++;
 					return entry;
-				}				
+				}
 			}
 			memory_record += entry->rec_len;
-		}	
+		}
 	}
-	return NULL;		
+	return NULL;
 }
 
 int check_inter(char* parent_path){
 	if (strlen(parent_path) == 1){
 		if(parent_path[0] == '/'){
-			return 0;		
-		}	
+			return 0;
+		}
 	}
-	
+
 	char copy[1024];
 	strcpy(copy, parent_path);
 	char* temp = strtok(copy, "/");
@@ -311,22 +310,22 @@ int main(int argc, char **argv){
       perror("mmap");
       exit(1);
   }
-  
+
   // find useful component
   super_block = (struct ext2_super_block*)(disk + EXT2_BLOCK_SIZE);
   group_desc = (struct ext2_group_desc*)(disk + EXT2_BLOCK_SIZE*2);
   block_bitmap = (unsigned char*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_block_bitmap);
   inode_bitmap = (unsigned char*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_inode_bitmap);
   inodes = (struct ext2_inode*)(disk + EXT2_BLOCK_SIZE * group_desc->bg_inode_table);
-  
+
   //for hardlink
   if (argc == 4){
-  		
+
   		char* chosen_source = argv[2];
   		char* chosen_dest = argv[3];
-  		
+
   		//getting source
-  		char* real_source = malloc(256); 
+  		char* real_source = malloc(256);
     	int s_path_len = strlen(chosen_source);
     	char* s_parent_path;
 	 	if (chosen_source[s_path_len - 1] == '/'){
@@ -338,7 +337,7 @@ int main(int argc, char **argv){
     		strcat(real_source, "/");
     		real_source[s_path_len + 1] = '\0';
    	}
-    	
+
     	//start getting the parent's inode and other information.
     	int k = strlen(real_source) - 2;
     	while (k > -1 & real_source[k]!='/'){
@@ -354,9 +353,9 @@ int main(int argc, char **argv){
     		strncpy(s_parent_path, real_source, k+1);
     		s_parent_path[k+1] = '\0';
     	}
-    	
+
     	//get destination.
-    	char* real_dest = malloc(256); 
+    	char* real_dest = malloc(256);
     	int d_path_len = strlen(chosen_dest);
     	char* d_parent_path;
 	 	if (chosen_dest[d_path_len - 1] == '/'){
@@ -368,12 +367,12 @@ int main(int argc, char **argv){
     		strcat(real_dest, "/");
     		real_dest[d_path_len + 1] = '\0';
    	}
-   	
+
    	struct ext2_inode* dest_inode = inode_given_path(real_dest);
     	if (dest_inode != NULL){
-    		return EEXIST;  	
+    		return EEXIST;
     	}
-    	
+
     	//start getting the parent's inode and other information.
     	k = strlen(real_dest) - 2;
     	while (k > -1 & real_dest[k]!='/'){
@@ -389,7 +388,7 @@ int main(int argc, char **argv){
     		strncpy(d_parent_path, real_dest, k+1);
     		d_parent_path[k+1] = '\0';
     	}
-    	
+
     	char* self_source_name = malloc(256);
     	char copy_path[1024];
     	strcpy(copy_path, real_source);
@@ -399,7 +398,7 @@ int main(int argc, char **argv){
 			temp = strtok(NULL, "/");
 	 	}
 	 	self_source_name[strlen(self_source_name)] = '\0';
-	 	
+
 	 	char* self_dest_name = malloc(256);
     	char copy_path2[1024];
     	strcpy(copy_path2, real_dest);
@@ -409,59 +408,59 @@ int main(int argc, char **argv){
 			temp2 = strtok(NULL, "/");
 	 	}
 	 	self_dest_name[strlen(self_dest_name)] = '\0';
-    	
+
     	printf("real source : %s \n", real_source);
     	printf("real dest : %s \n", real_dest);
     	printf("source parent : %s \n", s_parent_path);
     	printf("dest parent : %s \n", d_parent_path);
     	printf("source name : %s \n", self_source_name);
     	printf("dest name : %s \n", self_dest_name);
-    	
-    	
+
+
     	struct ext2_inode * source_parent_inode = inode_given_path(s_parent_path);
     	struct ext2_inode * dest_parent_inode = inode_given_path(d_parent_path);
-    	
+
     	int source_inode_index = inode_index_given_name_parent(source_parent_inode, self_source_name, EXT2_FT_REG_FILE);
     	if(source_inode_index == 0){
     		printf("Source Not Exist! \n");
-			return ENOENT;    	
+			return ENOENT;
     	}
-    	
+
     	if(inode_index_given_name_parent(dest_parent_inode, self_dest_name, EXT2_FT_REG_FILE) != 0){
     		printf("Dest Already Exist! \n");
-			return EEXIST;    	
+			return EEXIST;
     	}
-    	
+
     	struct ext2_dir_entry* new_entry = malloc(sizeof(struct ext2_dir_entry));
     	new_entry -> inode = source_inode_index;
     	new_entry -> file_type = EXT2_FT_REG_FILE;
     	new_entry->name_len = strlen(self_dest_name);
     	new_entry -> rec_len = get_entry_size(self_dest_name);
-    	
+
     	add_dir_entry(EXT2_FT_REG_FILE, dest_parent_inode, new_entry, self_dest_name);
-    	
+
     	inodes[source_inode_index - 1].i_links_count ++;
-    	
-    	free(new_entry);	
+
+    	free(new_entry);
   		free(self_dest_name);
   		free(self_source_name);
   		free(real_source);
   		free(real_dest);
   		free(s_parent_path);
   		free(d_parent_path);
- 
+
   		return 0;
-  
+
   }
-  
+
   // for softlink
   if (argc == 5){
-  	
+
   		char* chosen_source = argv[3];
   		char* chosen_dest = argv[4];
-  		
+
   		//getting source
-  		char* real_source = malloc(256); 
+  		char* real_source = malloc(256);
     	int s_path_len = strlen(chosen_source);
     	char* s_parent_path;
 	 	if (chosen_source[s_path_len - 1] == '/'){
@@ -473,7 +472,7 @@ int main(int argc, char **argv){
     		strcat(real_source, "/");
     		real_source[s_path_len + 1] = '\0';
    	}
-    	
+
     	//start getting the parent's inode and other information.
     	int k = strlen(real_source) - 2;
     	while (k > -1 & real_source[k]!='/'){
@@ -489,9 +488,9 @@ int main(int argc, char **argv){
     		strncpy(s_parent_path, real_source, k+1);
     		s_parent_path[k+1] = '\0';
     	}
-    	
+
     	//get destination.
-    	char* real_dest = malloc(256); 
+    	char* real_dest = malloc(256);
     	int d_path_len = strlen(chosen_dest);
     	char* d_parent_path;
 	 	if (chosen_dest[d_path_len - 1] == '/'){
@@ -503,12 +502,12 @@ int main(int argc, char **argv){
     		strcat(real_dest, "/");
     		real_dest[d_path_len + 1] = '\0';
    	}
-   	
+
    	struct ext2_inode* dest_inode = inode_given_path(real_dest);
     	if (dest_inode != NULL){
-    		return EEXIST;  	
+    		return EEXIST;
     	}
-    	
+
     	//start getting the parent's inode and other information.
     	k = strlen(real_dest) - 2;
     	while (k > -1 & real_dest[k]!='/'){
@@ -524,7 +523,7 @@ int main(int argc, char **argv){
     		strncpy(d_parent_path, real_dest, k+1);
     		d_parent_path[k+1] = '\0';
     	}
-    	
+
     	char* self_source_name = malloc(256);
     	char copy_path[1024];
     	strcpy(copy_path, real_source);
@@ -534,7 +533,7 @@ int main(int argc, char **argv){
 			temp = strtok(NULL, "/");
 	 	}
 	 	self_source_name[strlen(self_source_name)] = '\0';
-	 	
+
 	 	char* self_dest_name = malloc(256);
     	char copy_path2[1024];
     	strcpy(copy_path2, real_dest);
@@ -544,54 +543,52 @@ int main(int argc, char **argv){
 			temp2 = strtok(NULL, "/");
 	 	}
 	 	self_dest_name[strlen(self_dest_name)] = '\0';
-    	
+
     	printf("real source : %s \n", real_source);
     	printf("real dest : %s \n", real_dest);
     	printf("source parent : %s \n", s_parent_path);
     	printf("dest parent : %s \n", d_parent_path);
     	printf("source name : %s \n", self_source_name);
     	printf("dest name : %s \n", self_dest_name);
-    	
+
     	struct ext2_inode * source_parent_inode = inode_given_path(s_parent_path);
     	struct ext2_inode * dest_parent_inode = inode_given_path(d_parent_path);
-    	
+
     	int hardlink_inode_index = init_inode();
     	int hardlink_block_index = init_block();
-    	
+
     	super_block->s_free_blocks_count --;
     	super_block->s_free_inodes_count --;
     	group_desc->bg_free_blocks_count --;
     	group_desc->bg_free_inodes_count --;
-    	
+
     	block_bitmap_alter(hardlink_block_index - 1, 1);
     	inode_bitmap_alter(hardlink_block_index - 1, 1);
-    
+
     	alter_inode(hardlink_inode_index - 1, EXT2_S_IFLNK, strlen(real_source) - 1, hardlink_block_index);
     	struct ext2_dir_entry* new_entry = malloc(sizeof(struct ext2_dir_entry));
     	new_entry -> inode = hardlink_inode_index;
     	new_entry -> file_type = EXT2_FT_SYMLINK;
     	new_entry->name_len = strlen(self_dest_name);
     	new_entry -> rec_len = get_entry_size(self_dest_name);
-    	
+
     	add_dir_entry(EXT2_FT_SYMLINK, dest_parent_inode, new_entry, self_dest_name);
     	char *block_bit = (char*)(disk + inodes[hardlink_inode_index - 1].i_block[0]*EXT2_BLOCK_SIZE);
-    	
+
     	for(int m = 0; m < strlen(real_source); m++){
     		*block_bit = real_source[m];
     		block_bit++;
     	}
     	*block_bit = '\0';
-    	
-    	free(new_entry);	
+
+    	free(new_entry);
   		free(self_dest_name);
   		free(self_source_name);
   		free(real_source);
   		free(real_dest);
   		free(s_parent_path);
   		free(d_parent_path);
-    	
-    	return 0;	
+
+    	return 0;
   }
-
-
 }
