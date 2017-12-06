@@ -31,18 +31,19 @@ unsigned int init_block(){
 	int ind = 1;
 	int section_num = (super_block->s_blocks_count)/sizeof(char*);
 	while (count < section_num ){
-		temp = *pointer;
+			temp = *pointer;
 
-		while (count2 < 8) {
-			if(!((temp>>count2) & 1)){
-				return ind;
+			while (count2 < 8) {
+				if(!((temp>>count2) & 1)){
+					printf("New Block index : %d\n", ind);
+					return ind;
+				}
+				ind ++;
+				count2 ++;
 			}
-			ind ++;
-			count2 ++;
-		}
-		count2 = 0;
-		count ++;
-		pointer++;
+			count2 = 0;
+			count ++;
+			pointer++;
 	}
 	return 0;
 }
@@ -61,6 +62,7 @@ struct ext2_inode* inode_given_path(char *input){
 		char* temp = strtok(real_path, "/");
 		while (temp != NULL){
 			num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
+			printf("inode num : %d\n", num);
 			if (num == 0){
 				return NULL;
 			}
@@ -91,37 +93,38 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
 
 	struct ext2_dir_entry *entry;
 	int count = 0;
-	int memory_count;
-	int flag1 = 0;
-	int flag2 = 0;
-	int flag3 = 0;
+   int memory_count;
+   int flag1 = 0;
+   int flag2 = 0;
+   int flag3 = 0;
 
-	// loop through the inode's i_block
-	while (count < 15){
-		if (parent_inode->i_block[count]!=0){
-			memory_count = 0;
-			entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count]);
-			while(memory_count < EXT2_BLOCK_SIZE) {
-				if (strlen(name) == entry->name_len) {
-					flag1 = 1;
-				}
-				if (strncmp(name, entry->name, entry->name_len) == 0) {
-					flag2 = 1;
-				}
-				if (type & entry->file_type){
-					flag3 = 1;
-				}
-				if ((flag1 == 1) & (flag2 == 1) & (flag3 == 1)) {
-					return entry->inode;
-				}
-			flag1 = 0;flag2 = 0;flag3 = 0;
-			memory_count += entry->rec_len;
-			entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count] + memory_count);
-				}
-			}
-			count ++;
-	}
-	return 0;
+   // loop through the inode's i_block
+   while (count < 15){
+   	if (parent_inode->i_block[count]!=0){
+   		memory_count = 0;
+   		entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count]);
+   		while(memory_count < EXT2_BLOCK_SIZE){
+   			if (strlen(name) == entry->name_len){
+   				flag1 = 1;
+   			}
+   			if (strncmp(name, entry->name, entry->name_len) == 0){
+   				flag2 = 1;
+   			}
+   			if (type & entry->file_type){
+   				flag3 = 1;
+   			}
+   			if (flag1 == 1 & flag2 == 1 & flag3 == 1){
+   				printf("entry->inode %d \n", entry->inode);
+   				return entry->inode;
+   			}
+				flag1 = 0;flag2 = 0;flag3 = 0;
+				memory_count += entry->rec_len;
+				entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * parent_inode->i_block[count] + memory_count);
+  		 	}
+   	}
+   	count ++;
+   }
+   return 0;
 }
 
 int restore_dir_entry(struct ext2_inode *parent_inode, char* self_name){
@@ -133,6 +136,12 @@ int restore_dir_entry(struct ext2_inode *parent_inode, char* self_name){
 
 	int block_count = (parent_inode->i_blocks)/2;
 
+	printf("check parent : %d \n", parent_inode->i_links_count);
+	printf("check self_name : %s \n", self_name);
+	printf("check parent block: %d \n", block_count);
+
+	unsigned char *point;
+	struct ext2_inode* the_inode;
 	int this_inode_block;
 	int rem;
 
@@ -144,40 +153,45 @@ int restore_dir_entry(struct ext2_inode *parent_inode, char* self_name){
 
 			if(actual_size != entry->rec_len){
 
-				int start = memory_record + actual_size;
-				int end = memory_record + entry->rec_len;
-				while(start <= end){
-					possible_entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[i] + start);
-					if (possible_entry->inode != 0){
-						if (possible_entry->file_type == (unsigned char)EXT2_FT_REG_FILE) {
-						flag1 = 1;
-						}
+				 int start = memory_record + actual_size;
+			    int end = memory_record + entry->rec_len;
+			    while(start <= end){
+			    		possible_entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE*parent_inode->i_block[i] + start);
+			    		if (possible_entry->inode != 0){
+			    			printf("possible name: %s \n", possible_entry -> name);
+			    			printf("now position : %d \n", start);
+			    			if (possible_entry->file_type == (unsigned char)EXT2_FT_REG_FILE) {
+								flag1 = 1;
+				 			}
 
-						if(strncmp(self_name, possible_entry -> name, possible_entry->name_len) == 0){
-							flag2 = 1;
-						}
+				 			if(strncmp(self_name, possible_entry -> name, possible_entry->name_len) == 0){
+				 				flag2 = 1;
+				 			}
 
-						if (possible_entry->inode != 0){
-						flag3 = 1;
-						}
+				 			if (possible_entry->inode != 0){
+								flag3 = 1;
+				 			}
 
-						if (flag1 & flag2 & flag3){
-							restored_inode = possible_entry->inode;
-							this_inode_block = (restored_inode - 1)/sizeof(char*);
-							rem = (restored_inode-1) % (sizeof(char*));
-							//check inode
-							if((inode_bitmap[this_inode_block] >> (rem)) & 1){
-								return -1;
+				 			if (flag1 & flag2 & flag3){
+				 				printf("this: %s \n", possible_entry -> name);
+				 				restored_inode = possible_entry->inode;
+				 				point = inode_bitmap;
+	 							this_inode_block = (restored_inode - 1)/sizeof(char*);
+	 							rem = (restored_inode-1) % (sizeof(char*));
+	 							//check inode
+	 							if((inode_bitmap[this_inode_block] >> (rem)) & 1){
+										printf("no shit\n");
+										return -1;
+	 							}
+
+								entry -> rec_len = start - memory_record;
+								restored_inode = possible_entry->inode;
+								return restored_inode;
 							}
-
-						entry -> rec_len = start - memory_record;
-						restored_inode = possible_entry->inode;
-						return restored_inode;
-					}
-					}
-					flag1 = 0; flag2 = 0; flag3 = 0;
-					start += 4;
-				}
+			    		}
+			    		flag1 = 0; flag2 = 0; flag3 = 0;
+			    		start += 4;
+			    }
 
 			}
 			memory_record += entry->rec_len;
@@ -202,31 +216,8 @@ void inode_bitmap_alter(unsigned int ind, int result){
 	*position = ((*position & ~(1 << rem)) | (result << rem));
 }
 
-int check_inter(char* parent_path){
-	if (strlen(parent_path) == 1){
-		if(parent_path[0] == '/'){
-			return 0;
-		}
-	}
-
-	char copy[1024];
-	strcpy(copy, parent_path);
-	char* temp = strtok(copy, "/");
-	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
-	int num;
-	while (temp != NULL){
-		printf("check : %s\n", temp);
-		num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
-		parent_inode = &inodes[num-1];
-		temp = strtok(NULL, "/");
-		if (num == 0){
-			return -1;
-		}
-	}
-	return 0;
-}
-
 int main(int argc, char **argv) {
+
     if(argc != 3) {
         fprintf(stderr, "Usage: <disk name> <absolute_path>\n");
         exit(1);
@@ -250,7 +241,7 @@ int main(int argc, char **argv) {
 
     char* real_path = malloc(256);
     int path_len = strlen(chosen_path);
-	 	if (chosen_path[path_len - 1] == '/'){
+	 if (chosen_path[path_len - 1] == '/'){
     	strcpy(real_path, chosen_path);
     	real_path[path_len + 1] = '\0';
     	real_path[path_len + 2] = '\0';
@@ -260,8 +251,9 @@ int main(int argc, char **argv) {
     	real_path[path_len + 1] = '\0';
     }
 
+	 printf("real_path : %s \n", real_path);
     int k = strlen(real_path) - 2;
-    while ((k > -1) & (real_path[k]!='/')){
+    while (k > -1 & real_path[k]!='/'){
     		k --;
     }
     //get parent directory
@@ -275,67 +267,71 @@ int main(int argc, char **argv) {
     	strncpy(parent_path, real_path, k+1);
     	parent_path[k+1] = '\0';
     }
-    
-    if (check_inter(parent_path) == -1){
-    	fprintf(stderr, "such path not exist\n");
-		return ENOENT;
-	 }
+
+	 printf("parent_path : %s \n", parent_path);
 
     //get self name
     char copy_path[1024];
-	 	char cp[1024];
+	 char cp[1024];
     strcpy(copy_path, real_path);
     char* temp = strtok(copy_path, "/");
-	 	while (temp != NULL){
-			strcpy(cp, temp);
-			temp = strtok(NULL, "/");
-	 	}
-		char* self_name = malloc(strlen(cp));
-		strcpy(self_name, cp);
-		self_name[strlen(cp)] = '\0';
+	 while (temp != NULL){
+		 strcpy(cp, temp);
+		 temp = strtok(NULL, "/");
+	 }
+	 char* self_name = malloc(strlen(cp));
+	 strcpy(self_name, cp);
+	 self_name[strlen(cp)] = '\0';
+
+	 printf("self_name : %s \n", self_name);
+
+	 struct ext2_inode *parent_inode = inode_given_path(parent_path);
+	 int restored_inode_index = restore_dir_entry(parent_inode, self_name);
+
+	 if (restored_inode_index == -1 || restored_inode_index == 0){
+	 		printf("No shit\n");
+	 		return EEXIST;
+	 }
+
+	 printf("restored_inode_index: %d\n", restored_inode_index);
+	 printf("restored_inode_index: %d\n", restored_inode_index);
+	 unsigned char *point = inode_bitmap;
+	 unsigned char *pointer = block_bitmap;
+	 unsigned char *temp_bit;
+	 int this_block;
+	 int remain;
+
+	 struct ext2_inode* restored_inode = &inodes[restored_inode_index - 1];
 
 
-		struct ext2_inode *parent_inode = inode_given_path(parent_path);
-		int restored_inode_index = restore_dir_entry(parent_inode, self_name);
-
-		if (restored_inode_index == -1 || restored_inode_index == 0){
-			fprintf(stderr, "such file already exist\n");
-			return EEXIST;
-		}
-
-		unsigned char *pointer = block_bitmap;
-		int this_block;
-		int remain;
-
-		struct ext2_inode* restored_inode = &inodes[restored_inode_index - 1];
-
-	 	restored_inode->i_links_count++;
-	 	super_block->s_free_inodes_count --;
+	 restored_inode->i_links_count++;
+	 super_block->s_free_inodes_count --;
     group_desc->bg_free_inodes_count --;
-	 	inode_bitmap_alter(restored_inode_index - 1, 1);
-	 	//check block
-	 	int flag1 = 1;
-	 	int flag2 = 1;
-	 	int flag3 = 1;
+	 inode_bitmap_alter(restored_inode_index - 1, 1);
+	 //check block
+	 int flag1 = 1;
+	 int flag2 = 1;
+	 int flag3 = 1;
 
-	 	for(int p = 0; p<12; p++){
-	 		if (restored_inode->i_block[p]){
+	 for(int p = 0; p<12; p++){
+	 	if (restored_inode->i_block[p]){
 			this_block = (restored_inode->i_block[p] - 1)/(sizeof(char*));
 			pointer = block_bitmap + this_block;
 			remain = (restored_inode->i_block[p] - 1) % (sizeof(char*));
 			if ((*pointer >> (remain)) & 1){
+				printf("what the heck\n");
 				flag1 = 0;
 				break;
 			}
-			}
-		}
+	 	}
+	 }
 
 	 if (restored_inode->i_block[12]){
 	 	this_block = (restored_inode->i_block[12] - 1)/(sizeof(char*));
 	 	pointer = block_bitmap + this_block;
 	 	remain = restored_inode->i_block[12] - 1 % (sizeof(char*));
 	 	if ((*pointer >> (remain)) & 1){
-			flag2 = 0;
+				flag2 = 0;
 		}
 	 	unsigned int *block_index = (void*)(disk + restored_inode->i_block[12]*EXT2_BLOCK_SIZE);
 	 	int p = 0;
@@ -344,44 +340,51 @@ int main(int argc, char **argv) {
 	 		pointer = block_bitmap + this_block;
 	 		remain = (restored_inode->i_block[p] - 1) % (sizeof(char*));
 	 		if ((*pointer >> (remain)) & 1){
+	 			printf("what the fuck\n");
 				flag3 = 0;
 				break;
 			}
 			p++;
-		}
-	}
+	 	}
+	 }
 
-	int new_possible;
-	unsigned int *block_index;
-	if(flag1&flag2&flag3){
-		for(int p = 0; p<12; p++){
+ 	 int new_possible;
+ 	 unsigned int *block_index;
+	 if(flag1&flag2&flag3){
+	 	printf("here\n");
+	 	for(int p = 0; p<12; p++){
 	 		if (restored_inode->i_block[p]){
 	 			super_block->s_free_blocks_count --;
-				group_desc->bg_free_blocks_count --;
-				block_bitmap_alter(restored_inode->i_block[p] - 1, 1);
+         	group_desc->bg_free_blocks_count --;
+	 			block_bitmap_alter(restored_inode->i_block[p] - 1, 1);
 	 		}
-		}
+	 	}
 	 	int k = 0;
 	 	if (restored_inode->i_block[12]){
-			block_bitmap_alter(restored_inode->i_block[12] - 1, 1);
+	 		block_bitmap_alter(restored_inode->i_block[12] - 1, 1);
 	 		super_block->s_free_blocks_count --;
- 			group_desc->bg_free_blocks_count --;
-			block_index = (void*)(disk + restored_inode->i_block[12]*EXT2_BLOCK_SIZE);
+         group_desc->bg_free_blocks_count --;
+         block_index = (void*)(disk + restored_inode->i_block[12]*EXT2_BLOCK_SIZE);
 	 		while(k < (restored_inode->i_blocks)/2 - 13){
 	 			super_block->s_free_blocks_count --;
-        group_desc->bg_free_blocks_count --;
+         	group_desc->bg_free_blocks_count --;
 	 			block_bitmap_alter(*block_index-1,1);
 	 			k++;
 	 			block_index ++;
 	 		}
 	 	}
-	} else {
-		for(int l = 0; l<15; l++){
-			new_possible = init_block();
+	 }
+	 else{
+	 	printf("sigh\n");
+	 	for(int l = 0; l<15; l++){
+	 		new_possible = init_block();
 	 		restored_inode->i_block[0] = new_possible;
 	 		block_bitmap_alter(new_possible - 1, 1);
 	 		restored_inode->i_blocks = 2;
+
 	 	}
-	}
-	return 0;
+	 }
+
+	 return 0;
+
 }

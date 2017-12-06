@@ -10,7 +10,7 @@
 
 unsigned char *disk;
 
-/** NOTE helper function that change the bit at specific bit on block bit map to 1 return 1 if succeed  **/
+/** helper function that change the bit at specific bit on block bit map to 1 return 1 if succeed  **/
 int block_bitmap_alter(unsigned char *disk, int block_num){
 	struct ext2_super_block *super_block = (struct ext2_super_block *)(disk + 1024);
 	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
@@ -23,7 +23,6 @@ int block_bitmap_alter(unsigned char *disk, int block_num){
 	if (!cur_bit){
 		block_bitmap[byte_offset]|=(1<<bit_offset);
 		gd->bg_free_blocks_count --;
-		cur_bit = (block_bitmap[byte_offset]&(1<<bit_offset))>>bit_offset;
 		super_block->s_free_blocks_count --;
 		return 1;
 	}
@@ -49,7 +48,7 @@ int inode_bitmap_alter(unsigned char *disk, int block_num){
 	return 0;
 }
 
-//** NOTE travese through the inode bitmap or block bitmap,and return the number of free bits **/
+//** travese through the inode bitmap or block bitmap,and return the number of free bits **/
 unsigned int  free_bit_count(unsigned char *disk, int block_num){
 	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
 	unsigned int  bit_count = 0;
@@ -87,32 +86,30 @@ int check_bitmap(unsigned char *disk){
 	struct ext2_group_desc *gd = (struct ext2_group_desc *)(disk + 1024*2);
 
 	// NOTE group descriptor block and inode count
-	if ( gd->bg_free_inodes_count != free_inode_count ) {
-
-		unsigned int  diff = abs(free_inode_count - gd->bg_free_inodes_count);
-		gd->bg_free_inodes_count = free_inode_count;
-    printf("Fixed: block group's free inodes counter was off by %u compared to the bitmap\n", diff);
+	if ( gd->bg_free_blocks_count != free_block_count) {
+		gd->bg_free_blocks_count = free_block_count;
+		unsigned int  diff = (free_block_count - gd->bg_free_blocks_count);
+    printf("Fixed: block group's free blocks counter was off by %u compared to the bitmap\n",diff);
 		total_fixes += diff;
 	}
-	if ( gd->bg_free_blocks_count != free_block_count) {
-
-		unsigned int diff = abs(gd->bg_free_blocks_count - free_block_count);
-		gd->bg_free_blocks_count = free_block_count;
-    printf("Fixed: block group's free blocks counter was off by %u compared to the bitmap\n",diff);
+	if ( gd->bg_free_inodes_count != free_inode_count ) {
+		gd->bg_free_inodes_count = free_inode_count;
+		unsigned int  diff = (gd->bg_free_inodes_count - free_inode_count);
+    printf("Fixed: block group's free inodes counter was off by %u compared to the bitmap\n", diff);
 		total_fixes += diff;
 	}
 
   // NOTE :super block block and inode count
   if (super_block->s_free_inodes_count != free_inode_count){
-		unsigned int  diff = abs( free_inode_count - super_block->s_free_inodes_count );
 		super_block->s_free_inodes_count = free_inode_count;
-		printf("Fixed: superblock's free inodes counter was off by %u compared to the bitmap\n", diff);
+		unsigned int  diff = (super_block->s_free_inodes_count - free_inode_count);
+    printf("Fixed: superblock's free blocks counter was off by %u compared to the bitmap\n", diff);
 		total_fixes += diff;
 	}
 	if (super_block->s_free_blocks_count != free_block_count){
-		unsigned int  diff = abs(free_block_count - super_block->s_free_blocks_count);
 		super_block->s_free_blocks_count = free_block_count;
-    printf("Fixed: superblock's free blocks counter was off by %u compared to the bitmap\n", diff);
+		unsigned int  diff = (super_block->s_free_blocks_count - free_block_count);
+    printf("Fixed: superblock's free inodes counter was off by %u compared to the bitmap\n", diff);
 		total_fixes += diff;
 	}
   return total_fixes;
@@ -133,7 +130,7 @@ int check_inode(unsigned char *disk){
 			if(inodes[inode_index].i_blocks != 0){
 				if((inodes[inode_index].i_mode & EXT2_S_IFDIR) || (inodes[inode_index].i_mode & EXT2_S_IFREG) || (inodes[inode_index].i_mode & EXT2_S_IFLNK)){
 
-					//NOTE fix inode bitmap c2556c42a847c63b9fc3c4cefb4a38074d356922not marked as used
+					//NOTE fix inode bitmap not marked as used
 					if (inode_bitmap_alter(disk, inode_index) == 1){
 						printf("Fixed: inode [%d] not marked as in-use\n", inode_index);
 						total_fixes += 1;
@@ -157,7 +154,7 @@ int check_inode(unsigned char *disk){
 								} else if (p == 12){
 									continue;
 								} else {
-									cur_block_num = *(disk + inodes[inode_index].i_block[12] + (p-13));
+									cur_block_num = (int)(disk + inodes[inode_index].i_block[12] + (p-13));
 								}
 
 								entry = (struct ext2_dir_entry*)(disk + EXT2_BLOCK_SIZE * cur_block_num);
@@ -202,11 +199,11 @@ int check_inode(unsigned char *disk){
 											if(sub_i < 12){
 													sub_cur_num = cur_inode->i_block[sub_i];
 											}else if (sub_i == 12){
-												continue;
+													continue;
 											}else{
-												sub_cur_num = *(disk + cur_inode -> i_block[12] + ( sub_i - 13 ));
+												sub_cur_num = (int)( disk + cur_inode -> i_block[12] + ( sub_i - 13 ) );
 											}
-											if((sub_cur_num != 0) && (block_bitmap_alter(disk, sub_cur_num) == 1)){
+											if(block_bitmap_alter(disk, sub_cur_num) == 1){
 												fix_block += 1;
 												total_fixes++;
 											}
@@ -215,6 +212,7 @@ int check_inode(unsigned char *disk){
 											printf("Fixed: %d in-use data blocks not marked in data bitmap for inode:[%d]\n", fix_block, cur_inode_num);
 										}
 									}
+
 									//NOTE Move to next directory Entry
 									entry = (struct ext2_dir_entry *)((char *)entry + entry->rec_len);
 								}
@@ -243,6 +241,7 @@ int main(int argc, char **argv) {
 		perror("mmap");
 		exit(1);
 	}
+
 	int total_fixes = 0;
 	total_fixes += check_bitmap(disk);//check bitmap
 	total_fixes += check_inode(disk);//check inodes

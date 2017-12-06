@@ -129,16 +129,16 @@ unsigned int init_inode(){
 	int flag1 = 0;
 	int flag2 = 0;
 	int count = 0;
-	int inode_index = 0;
+	int count2 = 0;
 	int ind = 1;
 
 	while (count < (super_block->s_inodes_count)/sizeof(char*)){
 		temp = *pointer;
-		while (inode_index < 8) {
+		while (count2 < 8) {
 			if(ind >= 11){
 				flag1 = 1;
 			}
-			if(!((temp>>inode_index) & 1)){
+			if(!((temp>>count2) & 1)){
 				flag2 = 1;
 			}
 			if (flag1 & flag2){
@@ -146,10 +146,10 @@ unsigned int init_inode(){
 				return ind;
 			}
 			flag1 = 0;flag2 = 0;
-			inode_index ++;
+			count2 ++;
 			ind++;
 		}
-		inode_index = 0;
+		count2 = 0;
 		count ++;
 		pointer++;
 	}
@@ -160,21 +160,21 @@ unsigned int init_block(){
 	unsigned char *pointer = block_bitmap;
 	unsigned char temp;
 	int count = 0;
-	int inode_index = 0;
+	int count2 = 0;
 	int ind = 1;
 	int section_num = (super_block->s_blocks_count)/sizeof(char*);
 	while (count < section_num ){
 		temp = *pointer;
 
-		while (inode_index < 8) {
-			if(!((temp>>inode_index) & 1)){
+		while (count2 < 8) {
+			if(!((temp>>count2) & 1)){
 				printf("New Block index : %d\n", ind);
 				return ind;
 			}
 			ind ++;
-			inode_index ++;
+			count2 ++;
 		}
-		inode_index = 0;
+		count2 = 0;
 		count ++;
 		pointer++;
 	}

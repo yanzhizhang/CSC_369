@@ -26,6 +26,7 @@ struct ext2_inode* inode_given_path(char *input){
 	real_path[path_len + 1] = '\0';
 
 	unsigned int num;
+	unsigned int last_check;
 	// make the parent inode point to the root
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	if (path_len != 1){
@@ -103,9 +104,9 @@ unsigned int inode_index_given_path(char* input){
 			parent_inode = &inodes[num-1];
 			temp = strtok(NULL, "/");
 			if (temp == NULL){
-
-
-
+			
+			
+			
 			}
 		}
 	}
@@ -366,9 +367,9 @@ int main(int argc, char **argv) {
     	strcat(real_path, "/");
     	real_path[path_len + 1] = '\0';
     }
-
+    
     printf("real_path : %s \n", real_path);
-
+    
     if (inode_given_path(real_path) != NULL){
 		return EEXIST;
 	 }
@@ -377,7 +378,7 @@ int main(int argc, char **argv) {
     while ((k > -1) & (real_path[k]!='/')){
     		k --;
     }
-
+ 	  
     //get parent directory
     char* parent_path;
     if (k < 0){
@@ -389,7 +390,7 @@ int main(int argc, char **argv) {
     	strncpy(parent_path, real_path, k+1);
     	parent_path[k+1] = '\0';
     }
-
+    
     if (check_inter(parent_path) == -1){
 		return ENOENT;
 	 }
@@ -404,13 +405,13 @@ int main(int argc, char **argv) {
 	 }
 	 new_name[strlen(new_name)] = '\0';
     struct ext2_inode* parent_inode = inode_given_path(parent_path);
-
+    
     int check_exist = inode_index_given_name_parent(parent_inode, new_name, EXT2_FT_REG_FILE);
-
+    
     if(check_exist != 0){
-		return EEXIST;
+		return EEXIST;    
     }
-
+    
     unsigned int inode_index = init_inode();
     unsigned int block_index = init_block();
 
