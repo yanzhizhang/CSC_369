@@ -32,7 +32,6 @@ struct ext2_inode* inode_given_path(char *input){
 		char* temp = strtok(real_path, "/");
 		while (temp != NULL){
 			num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
-			printf("inode num : %d\n", num);
 			if (num == 0){
 				return NULL;
 			}
@@ -62,7 +61,6 @@ struct ext2_inode* inode_given_path_file(char *input){
 		char* temp = strtok(real_path, "/");
 		while (temp != NULL){
 			num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
-			printf("inode num : %d\n", num);
 			if (num == 0){
 				return NULL;
 			}
@@ -142,7 +140,6 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
 					flag3 = 1;
 				}
 				if ((flag1 == 1) & (flag2 == 1) & (flag3 == 1)){
-					printf("entry->inode %d \n", entry->inode);
 					return entry->inode;
 				}
 			flag1 = 0;flag2 = 0;flag3 = 0;
@@ -178,7 +175,6 @@ unsigned int init_inode(){
 				}
 
 				if (flag1 & flag2){
-					printf("New Inode Index: %d\n", ind);
 					return ind;
 				}
 
@@ -205,7 +201,6 @@ unsigned int init_block(){
 
 			while (count2 < 8) {
 				if(!((temp>>count2) & 1)){
-					printf("New Block index : %d\n", ind);
 					return ind;
 				}
 				ind ++;
@@ -279,7 +274,6 @@ int check_inter(char* parent_path){
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	int num;
 	while (temp != NULL){
-		printf("check : %s\n", temp);
 		num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
 		parent_inode = &inodes[num-1];
 		temp = strtok(NULL, "/");
@@ -333,7 +327,6 @@ int main(int argc, char **argv) {
     char* chosen_disk = argv[1];
     char* file_path = argv[2];
     char* chosen_path = argv[3];
-    printf("the file path : %s \n", file_path);
 
 	 int fd = open(chosen_disk, O_RDWR);
     disk = mmap(NULL, 128 * 1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -367,7 +360,6 @@ int main(int argc, char **argv) {
     	real_path[path_len + 1] = '\0';
     }
 
-    printf("real_path : %s \n", real_path);
 
     if (inode_given_path(real_path) != NULL){
 		return EEXIST;

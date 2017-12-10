@@ -198,7 +198,6 @@ int check_inter(char* parent_path){
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	int num;
 	while (temp != NULL){
-		printf("check : %s\n", temp);
 		num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
 		parent_inode = &inodes[num-1];
 		temp = strtok(NULL, "/");
@@ -258,7 +257,6 @@ int main(int argc, char **argv) {
 		strncpy(parent_path, real_path, k+1);
 		parent_path[k+1] = '\0';
 	}
-	printf("check parent : %s \n", parent_path);
 	if (check_inter(parent_path) == -1){
 		fprintf(stderr, "such path not exist\n");
 		return ENOENT;

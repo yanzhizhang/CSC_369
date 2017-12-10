@@ -215,7 +215,6 @@ int check_inter(char* parent_path){
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	int num;
 	while (temp != NULL){
-		printf("check : %s\n", temp);
 		num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
 		parent_inode = &inodes[num-1];
 		temp = strtok(NULL, "/");
@@ -351,7 +350,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	int new_possible;
 	unsigned int *block_index;
 	if(flag1&flag2&flag3){
 		for(int p = 0; p<12; p++){
@@ -376,12 +374,7 @@ int main(int argc, char **argv) {
 	 		}
 	 	}
 	} else {
-		for(int l = 0; l<15; l++){
-			new_possible = init_block();
-	 		restored_inode->i_block[0] = new_possible;
-	 		block_bitmap_alter(new_possible - 1, 1);
-	 		restored_inode->i_blocks = 2;
-	 	}
+	 	restored_inode->i_blocks = 0;
 	}
 	return 0;
 }

@@ -33,9 +33,7 @@ struct ext2_inode* inode_given_path(char *input){
 	if (path_len != 1){
 		char* temp = strtok(real_path, "/");
 		while (temp != NULL){
-			printf("the temp : %s \n", temp);
 			num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
-			printf("inode num : %d\n", num);
 			if (num == 0){
 				return NULL;
 			}
@@ -110,7 +108,6 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
 					flag3 = 1;
 				}
 				if ((flag1 == 1) & (flag2 == 1) & (flag3 == 1)){
-					printf("entry->inode %d \n", entry->inode);
 					return entry->inode;
 				}
 			flag1 = 0;flag2 = 0;flag3 = 0;
@@ -142,7 +139,6 @@ unsigned int init_inode(){
 				flag2 = 1;
 			}
 			if (flag1 & flag2){
-				printf("New Inode Index: %d\n", ind);
 				return ind;
 			}
 			flag1 = 0;flag2 = 0;
@@ -168,7 +164,6 @@ unsigned int init_block(){
 
 		while (inode_index < 8) {
 			if(!((temp>>inode_index) & 1)){
-				printf("New Block index : %d\n", ind);
 				return ind;
 			}
 			ind ++;
@@ -275,7 +270,6 @@ int check_inter(char* parent_path){
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	int num;
 	while (temp != NULL){
-		printf("check : %s\n", temp);
 		num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
 		parent_inode = &inodes[num-1];
 		temp = strtok(NULL, "/");
@@ -404,13 +398,6 @@ int main(int argc, char **argv){
 				temp2 = strtok(NULL, "/");
 		 	}
 		 	self_dest_name[strlen(self_dest_name)] = '\0';
-
-    	printf("real source : %s \n", real_source);
-    	printf("real dest : %s \n", real_dest);
-    	printf("source parent : %s \n", s_parent_path);
-    	printf("dest parent : %s \n", d_parent_path);
-    	printf("source name : %s \n", self_source_name);
-    	printf("dest name : %s \n", self_dest_name);
     	
     	if (check_inter(s_parent_path) == -1){
     		fprintf(stderr, "source parent path not exist\n");
@@ -427,12 +414,12 @@ int main(int argc, char **argv){
 
     	int source_inode_index = inode_index_given_name_parent(source_parent_inode, self_source_name, EXT2_FT_REG_FILE);
     	if(source_inode_index == 0){
-    		printf("Source Not Exist! \n");
+    		fprintf(stderr, "Source Not Exist! \n");
 			return ENOENT;
     	}
 
     	if(inode_index_given_name_parent(dest_parent_inode, self_dest_name, EXT2_FT_REG_FILE) != 0){
-    		printf("Dest Already Exist! \n");
+    		fprintf(stderr, "Dest Already Exist! \n");
 			return EEXIST;
     	}
 
@@ -547,13 +534,6 @@ int main(int argc, char **argv){
 			temp2 = strtok(NULL, "/");
 	 	}
 	 	self_dest_name[strlen(self_dest_name)] = '\0';
-
-    	printf("real source : %s \n", real_source);
-    	printf("real dest : %s \n", real_dest);
-    	printf("source parent : %s \n", s_parent_path);
-    	printf("dest parent : %s \n", d_parent_path);
-    	printf("source name : %s \n", self_source_name);
-    	printf("dest name : %s \n", self_dest_name);
 
     	struct ext2_inode * dest_parent_inode = inode_given_path(d_parent_path);
 

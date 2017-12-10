@@ -33,7 +33,6 @@ struct ext2_inode* inode_given_path(char *input){
 		char* temp = strtok(real_path, "/");
 		while (temp != NULL){
 			num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
-			printf("inode num : %d\n", num);
 			if (num == 0){
 				return NULL;
 			}
@@ -108,7 +107,6 @@ unsigned int inode_index_given_name_parent(struct ext2_inode *parent_inode, char
 					flag3 = 1;
 				}
 				if ((flag1 == 1) & (flag2 == 1) & (flag3 == 1)){
-					printf("entry->inode %d \n", entry->inode);
 					return entry->inode;
 				}
 			flag1 = 0;flag2 = 0;flag3 = 0;
@@ -167,7 +165,6 @@ unsigned int init_block(){
 
 			while (count2 < 8) {
 				if(!((temp>>count2) & 1)){
-					printf("New Block index : %d\n", ind);
 					return ind;
 				}
 				ind ++;
@@ -274,7 +271,6 @@ int check_inter(char* parent_path){
 	struct ext2_inode *parent_inode = &inodes[EXT2_ROOT_INO - 1];
 	int num;
 	while (temp != NULL){
-		printf("check : %s\n", temp);
 		num = inode_index_given_name_parent(parent_inode, temp, EXT2_FT_DIR);
 		parent_inode = &inodes[num-1];
 		temp = strtok(NULL, "/");
@@ -344,7 +340,6 @@ int main(int argc, char **argv) {
 		parent_path[k+1] = '\0';
 	}
 
-	printf("parent_path : %s \n", parent_path);
 	if (check_inter(parent_path) == -1){
 		return ENOENT;
 	}
